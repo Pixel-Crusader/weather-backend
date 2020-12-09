@@ -7,12 +7,15 @@ const appid = '3a8e27db2f53d5233b5e559948a133b6'
 
 router.get('/city', (req, res, next) => {
     const city = req.query.q;
+    if (!city) {
+        return res.status(400).json();
+    }
     const lang = req.query.lang;
     fetch(`${baseUrl}&appid=${appid}&q=${city}&lang=${lang}`)
         .then(r => r.json())
         .then(r => {
             console.log(r);
-            res.status(200).json(r);
+            res.status(r.cod).json(r);
         })
         .catch(err => {
             console.log(err);
@@ -30,7 +33,7 @@ router.get('/coordinates', (req, res, next) => {
         .then(r => r.json())
         .then(r => {
             console.log(r);
-            res.status(200).json(r);
+            res.status(r.cod).json(r);
         })
         .catch(err => {
             console.log(err);

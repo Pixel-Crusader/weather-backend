@@ -1,31 +1,32 @@
 const express = require('express');
 const router = express.Router();
-const Datastore = require('nedb')
+const Datastore = require('nedb');
 
 const favDb = new Datastore({ filename: './favorites.db', autoload: true });
+favDb.ensureIndex({ fieldName: ['compound'], unique: true }, err => {});
 const usersDb = new Datastore( { filename: './users.db', autoload: true });
 
 router.get('/', (req, res, next) => {
     const userId = req.cookies.userId;
     if (!userId) {
-        return res.status(200).json([])
+        return res.status(200).json([]);
     }
-    favDb.find({}, (error, docs) => {
+    res.cookie('userId', userId, { maxAge: 3600000 * 24 * 180 });
+    favDb.find({ user: userId }, { city: 1, _id: 0 }, (error, docs) => {
         if (error) {
             console.log(error);
+            res.status(500).json(error);
         }
         else {
             console.log(docs);
+            res.status(200).json(docs);
         }
-    });
-    res.cookie('userId', userId, { maxAge: 3600000 * 24 * 180 })
-    res.status(200).json({
-        message: "Get favorites for user " + userId
     });
 });
 
 router.post('/', async (req, res, next) => {
-    let userId
+    const cityName = req.body.name;
+    let userId;
     if (req.cookies.userId) {
         userId = req.cookies.userId;
         if (!await validateId(userId)) {
@@ -36,10 +37,41 @@ router.post('/', async (req, res, next) => {
         userId = await getId();
         console.log(userId);
     }
-    res.cookie('userId', userId, { maxAge: 3600000 * 24 * 180 })
-    console.log(req.body.name);
-    res.status(201).json({name: req.body.name});
-})
+    res.cookie('userId', userId, { maxAge: 3600000 * 24 * 180 });
+    favDb.insert({ user: userId, city: cityName, compound: userId+cityName }, (err, doc) => {
+        if (err) {
+            if (err.errorType === 'uniqueViolated') {
+                res.status(409).json();
+            }
+            else {
+                res.status(500).json({ error: err });
+            }
+        }
+        else {
+            res.status(201).json({ cityName: doc.city });
+        }
+    });
+});
+
+router.delete('/', (req, res, next) => {
+    const cityName = req.body.name;
+    if (!cityName) {
+        return res.status(400).json();
+    }
+    const userId = req.cookies.userId;
+    if (!userId) {
+        return res.status(401).json();
+    }
+    res.cookie('userId', userId, { maxAge: 3600000 * 24 * 180 });
+    favDb.remove({ city: cityName, user: userId }, (err, num) => {
+        if (err) {
+            res.status(500).json(err);
+        }
+        else {
+            res.status(200).json({ removed: num });
+        }
+    })
+});
 
 function validateId(id) {
     return new Promise((resolve, reject) => {
