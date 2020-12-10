@@ -2,8 +2,8 @@ const express = require('express');
 const router = express.Router();
 const fetch = require('node-fetch')
 
-const baseUrl = 'https://api.openweathermap.org/data/2.5/weather?units=metric'
-const appid = '3a8e27db2f53d5233b5e559948a133b6'
+const baseUrl = process.env.BASE_URL
+const appid = process.env.APP_ID
 
 router.get('/city', (req, res, next) => {
     const city = req.query.q;
@@ -11,12 +11,9 @@ router.get('/city', (req, res, next) => {
         return res.status(400).json();
     }
     const lang = req.query.lang;
-    fetch(`${baseUrl}&appid=${appid}&q=${city}&lang=${lang}`)
+    fetch(`${baseUrl}&appid=${appid}&q=${encodeURI(city)}&lang=${lang}`)
         .then(r => r.json())
-        .then(r => {
-            console.log(r);
-            res.status(r.cod).json(r);
-        })
+        .then(r => res.status(r.cod).json(r))
         .catch(err => {
             console.log(err);
             res.status(500).json({
@@ -31,10 +28,7 @@ router.get('/coordinates', (req, res, next) => {
     const lang = req.query.lang;
     fetch(`${baseUrl}&appid=${appid}&lat=${lat}&lon=${long}&lang=${lang}`)
         .then(r => r.json())
-        .then(r => {
-            console.log(r);
-            res.status(r.cod).json(r);
-        })
+        .then(r => res.status(r.cod).json(r))
         .catch(err => {
             console.log(err);
             res.status(500).json({

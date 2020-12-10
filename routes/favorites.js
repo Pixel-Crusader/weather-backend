@@ -1,9 +1,13 @@
 const express = require('express');
 const router = express.Router();
+const fetch = require('node-fetch')
 const Datastore = require('nedb');
 
+const baseUrl = process.env.BASE_URL
+const appid = process.env.APP_ID
+
 const favDb = new Datastore({ filename: './favorites.db', autoload: true });
-favDb.ensureIndex({ fieldName: ['compound'], unique: true }, err => {});
+favDb.ensureIndex({ fieldName: 'compound', unique: true }, err => {});
 const usersDb = new Datastore( { filename: './users.db', autoload: true });
 
 router.get('/', (req, res, next) => {
@@ -18,14 +22,29 @@ router.get('/', (req, res, next) => {
             res.status(500).json(error);
         }
         else {
-            console.log(docs);
             res.status(200).json(docs);
         }
     });
 });
 
 router.post('/', async (req, res, next) => {
-    const cityName = req.body.name;
+    let cityName = req.body.name;
+    if (!cityName) {
+        return res.status(400).json({});
+    }
+    let lang = req.body.lang;
+    if (!lang) {
+        lang = 'en'
+    }
+    let cityId;
+    const response = await fetch(`${baseUrl}&appid=${appid}&lang=${lang}&q=${encodeURI(cityName)}`).then(r => r.json());
+    if (response.cod !== 200) {
+        return res.status(response.cod).json({});
+    }
+    else {
+        cityId = response.id;
+        cityName = response.name;
+    }
     let userId;
     if (req.cookies.userId) {
         userId = req.cookies.userId;
@@ -38,32 +57,40 @@ router.post('/', async (req, res, next) => {
         console.log(userId);
     }
     res.cookie('userId', userId, { maxAge: 3600000 * 24 * 180 });
-    favDb.insert({ user: userId, city: cityName, compound: userId+cityName }, (err, doc) => {
+    favDb.insert({ user: userId, city: cityName, compound: userId+cityId }, (err, doc) => {
         if (err) {
             if (err.errorType === 'uniqueViolated') {
-                res.status(409).json();
+                res.status(409).json({ name: cityName });
             }
             else {
                 res.status(500).json({ error: err });
             }
         }
         else {
-            res.status(201).json({ cityName: doc.city });
+            res.status(201).json(response);
         }
     });
 });
 
-router.delete('/', (req, res, next) => {
-    const cityName = req.body.name;
+router.delete('/', async (req, res, next) => {
+    let cityName = req.query.name;
     if (!cityName) {
-        return res.status(400).json();
+        return res.status(400).json({});
+    }
+    let cityId;
+    const response = await fetch(`${baseUrl}&appid=${appid}&q=${encodeURI(cityName)}`).then(r => r.json());
+    if (response.cod !== 200) {
+        return res.status(response.cod).json({});
+    }
+    else {
+        cityId = response.id;
     }
     const userId = req.cookies.userId;
     if (!userId) {
         return res.status(401).json();
     }
     res.cookie('userId', userId, { maxAge: 3600000 * 24 * 180 });
-    favDb.remove({ city: cityName, user: userId }, (err, num) => {
+    favDb.remove({ compound: userId+cityId }, (err, num) => {
         if (err) {
             res.status(500).json(err);
         }
