@@ -26,6 +26,9 @@ router.get('/coordinates', (req, res, next) => {
     const lat = req.query.lat;
     const long = req.query.long;
     const lang = req.query.lang;
+    if (!lat || !long) {
+        return res.status(400).json();
+    }
     fetch(`${baseUrl}&appid=${appid}&lat=${lat}&lon=${long}&lang=${lang}`)
         .then(r => r.json())
         .then(r => res.status(r.cod).json(r))
